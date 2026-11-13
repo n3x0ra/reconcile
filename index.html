@@ -1,0 +1,328 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Nexora Reconcile</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+html{color-scheme:light}body{margin:0}[hidden]{display:none!important}
+/* Layout: a working ledger — inputs strip, summary row, then one tabbed register. Accent = ledger teal; review = amber, unmatched = brick. */
+:root{
+  --paper:#f6f7f5; --sheet:#ffffff; --ink:#18201d; --muted:#5d6a64; --rule:#dfe4e1;
+  --accent:#0f6b5c; --accent-soft:#e3f0ec; --warn:#9a5b00; --warn-soft:#fbf0dc; --bad:#a23b2a; --bad-soft:#f8e6e2; --good:#1f7a43; --good-soft:#e4f2e8;
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:"IBM Plex Mono",ui-monospace,"SFMono-Regular",Menlo,monospace;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --paper:#111614; --sheet:#171e1b; --ink:#e7ece9; --muted:#9aa8a2; --rule:#2a3430;
+  --accent:#4fbfa8; --accent-soft:#16302a; --warn:#e0a24a; --warn-soft:#33270f; --bad:#e2806d; --bad-soft:#3a1e19; --good:#6cc890; --good-soft:#15301f; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --paper:#111614; --sheet:#171e1b; --ink:#e7ece9; --muted:#9aa8a2; --rule:#2a3430;
+  --accent:#4fbfa8; --accent-soft:#16302a; --warn:#e0a24a; --warn-soft:#33270f; --bad:#e2806d; --bad-soft:#3a1e19; --good:#6cc890; --good-soft:#15301f; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:14px;line-height:1.5}
+.wrap{max-width:1120px;margin:0 auto;padding-block:24px 48px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:grid;grid-template-columns:minmax(0,1fr);gap:20px}
+.wrap>*{min-width:0}
+header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px}
+.brand{display:flex;align-items:baseline;gap:10px}
+.brand b{font-size:20px;font-weight:600;letter-spacing:-.01em}
+.brand span{color:var(--muted)}
+.privacy{display:inline-flex;align-items:center;gap:8px;background:var(--accent-soft);color:var(--accent);border-radius:999px;padding:6px 12px;font-weight:500;font-size:13px}
+.privacy i{width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block}
+.panel{background:var(--sheet);border:1px solid var(--rule);border-radius:10px;padding:16px}
+.inputs{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:stretch}
+@media (max-width:760px){.inputs{grid-template-columns:1fr}}
+.drop{border:1.5px dashed var(--rule);border-radius:8px;padding:14px;display:grid;gap:6px;cursor:pointer;min-width:0}
+.drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+.drop strong{font-weight:600}
+.drop small{color:var(--muted)}
+.drop .files{font-family:var(--mono);font-size:12px;color:var(--ink);overflow-wrap:anywhere}
+.drop input{display:none}
+.actions{display:grid;gap:8px;align-content:center}
+button{font:inherit;font-weight:500;border-radius:8px;padding:9px 14px;border:1px solid var(--rule);background:var(--sheet);color:var(--ink);cursor:pointer}
+button:hover{border-color:var(--accent)}
+button:focus-visible,.drop:focus-visible,.tab:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+button.primary{background:var(--accent);border-color:var(--accent);color:var(--sheet)}
+.banner{display:flex;flex-wrap:wrap;gap:8px;align-items:center;font-size:13px;color:var(--warn);background:var(--warn-soft);border-radius:8px;padding:8px 12px}
+.summary{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
+@media (max-width:760px){.summary{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.tile{background:var(--sheet);border:1px solid var(--rule);border-radius:10px;padding:14px;display:grid;gap:4px;border-top:3px solid var(--tc,var(--rule))}
+.tile .lab{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.tile .big{font-family:var(--mono);font-size:22px;font-weight:500;font-variant-numeric:tabular-nums}
+.tile .sub{font-family:var(--mono);font-size:12px;color:var(--muted)}
+.tabs{display:flex;flex-wrap:wrap;gap:4px;border-bottom:1px solid var(--rule);margin-bottom:12px}
+.tab{background:none;border:0;border-bottom:2px solid transparent;border-radius:0;padding:8px 12px;color:var(--muted)}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--accent)}
+.tab .n{font-family:var(--mono);font-size:12px;margin-left:6px;color:var(--muted)}
+.scroll{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;font-weight:500;color:var(--muted);font-size:12px;text-transform:uppercase;letter-spacing:.05em;padding:8px;border-bottom:1px solid var(--rule);white-space:nowrap}
+td{padding:9px 8px;border-bottom:1px solid var(--rule);vertical-align:top}
+td.num{font-family:var(--mono);text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+td.mono{font-family:var(--mono);font-size:12px;white-space:nowrap}
+.pill{display:inline-block;font-size:12px;font-weight:500;border-radius:999px;padding:2px 9px;white-space:nowrap}
+.p-good{background:var(--good-soft);color:var(--good)} .p-warn{background:var(--warn-soft);color:var(--warn)} .p-bad{background:var(--bad-soft);color:var(--bad)} .p-acc{background:var(--accent-soft);color:var(--accent)}
+.note{color:var(--muted);font-size:12px}
+.rowbtns{display:flex;gap:6px;flex-wrap:wrap}
+.rowbtns button{padding:4px 10px;font-size:12px}
+.empty{color:var(--muted);padding:24px 8px;text-align:center}
+.foot{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;color:var(--muted);font-size:12px}
+.foot .btns{display:flex;gap:8px;flex-wrap:wrap}
+.toast{position:fixed;bottom:calc(16px + env(safe-area-inset-bottom,0px));right:max(16px,env(safe-area-inset-right,0px));background:var(--ink);color:var(--paper);padding:8px 14px;border-radius:8px;font-size:13px}
+@media (prefers-reduced-motion:no-preference){.tile,.panel{transition:border-color .15s}}
+</style>
+
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand"><b>Nexora Reconcile</b><span>Match payments to invoices</span></div>
+    <span class="privacy"><i></i>Runs in your browser · files are never uploaded</span>
+  </header>
+
+  <section class="panel inputs" aria-label="Your files">
+    <label class="drop" id="dropInv" tabindex="0">
+      <strong>1 · Invoices (CSV)</strong>
+      <small>Columns like invoice no., date, customer, amount</small>
+      <span class="files" id="invName">sample: invoices.csv</span>
+      <input type="file" id="fileInv" accept=".csv,text/csv">
+    </label>
+    <label class="drop" id="dropPay" tabindex="0">
+      <strong>2 · Payments (one or more CSV)</strong>
+      <small>Bank, GCash or Maya exports with date, description, amount or credit</small>
+      <span class="files" id="payName">sample: bank_statement.csv, gcash_transactions.csv, maya_transactions.csv</span>
+      <input type="file" id="filePay" accept=".csv,text/csv" multiple>
+    </label>
+    <div class="actions">
+      <button class="primary" id="run">Reconcile</button>
+      <button id="sample">Load sample data</button>
+    </div>
+  </section>
+
+  <div class="banner" id="sampleBanner">Showing fictional sample data for "a distributor, October 2026". Load your own files above to replace it.</div>
+
+  <section class="summary" aria-label="Summary">
+    <div class="tile" style="--tc:var(--good)"><span class="lab">Matched</span><span class="big" id="sMatched">0</span><span class="sub" id="sMatchedAmt">₱0.00</span></div>
+    <div class="tile" style="--tc:var(--warn)"><span class="lab">Needs your review</span><span class="big" id="sReview">0</span><span class="sub" id="sReviewAmt">₱0.00</span></div>
+    <div class="tile" style="--tc:var(--bad)"><span class="lab">Unmatched payments</span><span class="big" id="sUnmatched">0</span><span class="sub" id="sUnmatchedAmt">₱0.00</span></div>
+    <div class="tile" style="--tc:var(--accent)"><span class="lab">Still owed to you</span><span class="big" id="sOut">0</span><span class="sub" id="sOutAmt">₱0.00</span></div>
+  </section>
+
+  <section class="panel">
+    <div class="tabs" role="tablist">
+      <button class="tab" role="tab" data-t="review" aria-selected="true">Needs review<span class="n" id="nReview"></span></button>
+      <button class="tab" role="tab" data-t="matched" aria-selected="false">Matched<span class="n" id="nMatched"></span></button>
+      <button class="tab" role="tab" data-t="unmatched" aria-selected="false">Unmatched payments<span class="n" id="nUnmatched"></span></button>
+      <button class="tab" role="tab" data-t="outstanding" aria-selected="false">Still owed<span class="n" id="nOut"></span></button>
+    </div>
+    <div class="scroll" id="table"></div>
+  </section>
+
+  <div class="foot">
+    <span id="status">Payments you confirm or reject stay only in this browser tab.</span>
+    <div class="btns"><button id="copy">Copy report (CSV)</button><button id="dl" hidden>Download report (CSV)</button></div>
+  </div>
+</div>
+<div class="toast" id="toast" hidden></div>
+
+<script>
+// Nexora Reconciler engine v0.1 — runs entirely client-side.
+const NX = (() => {
+  function parseCSV(text) {
+    const rows = []; let row = [], f = '', q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) { if (c === '"') { if (text[i+1] === '"') { f += '"'; i++; } else q = false; } else f += c; }
+      else if (c === '"') q = true;
+      else if (c === ',') { row.push(f); f = ''; }
+      else if (c === '\n' || c === '\r') { if (c === '\r' && text[i+1] === '\n') i++; row.push(f); f = ''; if (row.some(x => x.trim() !== '')) rows.push(row); row = []; }
+      else f += c;
+    }
+    row.push(f); if (row.some(x => x.trim() !== '')) rows.push(row);
+    if (!rows.length) return [];
+    const head = rows[0].map(h => h.trim());
+    return rows.slice(1).map(r => Object.fromEntries(head.map((h, i) => [h, (r[i] || '').trim()])));
+  }
+  const num = s => { if (s == null) return NaN; const v = String(s).replace(/[₱,\s]/g, '').replace(/^\((.*)\)$/, '-$1'); return v === '' ? NaN : Number(v); };
+  function parseDate(s) {
+    s = (s || '').trim(); let m;
+    if ((m = s.match(/^(\d{4})-(\d{2})-(\d{2})/))) return new Date(Date.UTC(+m[1], +m[2]-1, +m[3]));
+    if ((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/))) return new Date(Date.UTC(+m[3], +m[1]-1, +m[2]));
+    const d = new Date(s); return isNaN(d) ? null : new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+  }
+  const iso = d => d ? d.toISOString().slice(0, 10) : '';
+  const norm = s => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const pick = (keys, ...tests) => keys.find(k => tests.some(t => t(k.toLowerCase())));
+  function normInvoices(rows) {
+    if (!rows.length) return [];
+    const k = Object.keys(rows[0]);
+    const kn = pick(k, x => x.includes('invoice') && (x.includes('no') || x.includes('num') || x.includes('#')), x => x === 'invoice');
+    const kd = pick(k, x => x.includes('invoice') && x.includes('date'), x => x === 'date');
+    const kc = pick(k, x => x.includes('customer'), x => x.includes('client'), x => x.includes('name'));
+    const ka = pick(k, x => x.includes('amount'), x => x.includes('total'));
+    return rows.map(r => ({ no: r[kn], date: parseDate(r[kd]), customer: r[kc] || '', amount: num(r[ka]) })).filter(i => i.no && !isNaN(i.amount));
+  }
+  function normPayments(rows, source) {
+    if (!rows.length) return [];
+    const k = Object.keys(rows[0]);
+    const kd = pick(k, x => x.includes('date'));
+    const kdesc = pick(k, x => x.includes('description'), x => x.includes('details'), x => x.includes('particular'), x => x.includes('remark'), x => x.includes('narrative'));
+    const kref = pick(k, x => x.includes('reference'), x => x.includes('ref'));
+    const kcr = pick(k, x => x.includes('credit'), x => x === 'deposit' || x.includes('deposit'));
+    const kamt = pick(k, x => x === 'amount' || x.includes('amount'));
+    const kst = pick(k, x => x.includes('status'));
+    const out = [];
+    rows.forEach((r, idx) => {
+      let amt = kcr ? num(r[kcr]) : num(r[kamt]);
+      if (isNaN(amt) || amt <= 0) return; // debits / expenses ignored
+      if (kst && r[kst] && !/success|complete|posted/i.test(r[kst])) return;
+      out.push({ id: `${source}#${idx + 2}`, source, row: idx + 2, date: parseDate(r[kd]), desc: r[kdesc] || '', ref: r[kref] || '', amount: amt });
+    });
+    return out;
+  }
+  function dice(a, b) {
+    if (a.length < 2 || b.length < 2) return 0;
+    const bg = s => { const m = new Map(); for (let i = 0; i < s.length - 1; i++) { const g = s.slice(i, i+2); m.set(g, (m.get(g) || 0) + 1); } return m; };
+    const A = bg(a), B = bg(b); let inter = 0;
+    for (const [g, c] of A) inter += Math.min(c, B.get(g) || 0);
+    return 2 * inter / (a.length - 1 + b.length - 1);
+  }
+  function nameScore(customer, desc) {
+    const c = norm(customer), d = norm(desc); if (!c || !d) return 0;
+    if (d.includes(c) || d.includes(c.slice(0, 10))) return 1;
+    let best = 0; const L = Math.min(c.length, 12);
+    for (let i = 0; i + L <= d.length; i++) best = Math.max(best, dice(c.slice(0, L), d.slice(i, i + L)));
+    return best;
+  }
+  const close = (a, b) => Math.abs(a - b) < 0.005;
+  const fm = n => n.toLocaleString('en-PH', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  function reconcile(invoices, payments, opt = {}) {
+    const FEE_MAX = opt.feeMax ?? 50, WINDOW = opt.windowDays ?? 45;
+    const inv = invoices.map(i => ({ ...i, paid: 0, payments: [] }));
+    const byNo = new Map(inv.map(i => [norm(i.no), i]));
+    const results = [];
+    const seen = new Map();
+    for (const p of payments) {
+      const sig = `${p.source}|${iso(p.date)}|${p.amount}|${norm(p.desc)}`;
+      if (seen.has(sig)) { results.push({ p, status: 'review', kind: 'possible_duplicate', invoices: seen.get(sig).invoices, note: `Same date, amount and description as ${seen.get(sig).p.id}; not counted` }); continue; }
+      const conf = opt.confirmed && opt.confirmed.get(p.id);
+      if (conf) { const ci = conf.map(n => byNo.get(norm(n))).filter(Boolean); const r0 = { p, status: 'matched', kind: 'confirmed', invoices: ci, note: 'Confirmed by you' }; results.push(r0); seen.set(sig, r0); let left = p.amount; for (const i of ci) { const take = Math.min(left, i.amount - i.paid); i.paid += take; left -= take; i.payments.push(p.id); } continue; }
+      if (opt.rejected && opt.rejected.has(p.id)) { const r0 = { p, status: 'unmatched', kind: 'rejected', invoices: [], note: 'Suggestion rejected by you' }; results.push(r0); seen.set(sig, r0); continue; }
+      const texts = [norm(p.desc), norm(p.ref)];
+      const refs = inv.filter(i => { const n = norm(i.no); const re = new RegExp(n + '(?![0-9])'); return n.length >= 3 && texts.some(t => re.test(t)); });
+      let r;
+      if (refs.length === 1) {
+        const i = refs[0]; const open = i.amount - i.paid; const ns = nameScore(i.customer, p.desc);
+        const nameNote = ns < 0.6 ? ' · name differs from invoice customer' : '';
+        if (close(p.amount, open)) r = { status: 'matched', kind: 'exact', invoices: [i] , note: 'Invoice number and amount match' + nameNote };
+        else if (p.amount < open && open - p.amount <= FEE_MAX) r = { status: 'matched', kind: 'fee_deducted', invoices: [i], note: `Short by ₱${fm(open - p.amount)} — likely transfer fee; review fee policy` + nameNote };
+        else if (p.amount < open) r = { status: 'review', kind: 'partial', invoices: [i], note: `Partial payment; ₱${fm(open - p.amount)} still open` + nameNote };
+        else r = { status: 'review', kind: 'overpayment', invoices: [i], note: `Overpaid by ₱${fm(p.amount - open)}` + nameNote };
+      } else if (refs.length > 1) {
+        const tot = refs.reduce((s, i) => s + (i.amount - i.paid), 0);
+        r = close(tot, p.amount) ? { status: 'matched', kind: 'combined', invoices: refs, note: `One payment for ${refs.length} invoices` }
+                                 : { status: 'review', kind: 'combined_mismatch', invoices: refs, note: `References ${refs.length} invoices but amount differs by ₱${fm(p.amount - tot)}` };
+      } else {
+        const cands = inv.filter(i => i.paid === 0 && close(i.amount, p.amount) && (!p.date || !i.date || ((p.date - i.date) / 864e5 >= -1 && (p.date - i.date) / 864e5 <= WINDOW)))
+                         .map(i => ({ i, s: nameScore(i.customer, p.desc) })).sort((a, b) => b.s - a.s);
+        const good = cands.filter(c => c.s >= 0.6);
+        if (good.length === 1) r = { status: 'review', kind: 'suggested', invoices: [good[0].i], note: `No invoice number; amount, date and name fit ${good[0].i.no} — confirm` };
+        else if (good.length > 1) r = { status: 'review', kind: 'ambiguous', invoices: good.map(c => c.i), note: `No invoice number; ${good.length} invoices fit — choose one` };
+        else r = { status: 'unmatched', kind: 'unmatched', invoices: [], note: cands.length ? 'Amount fits an invoice but customer name does not — check' : 'No invoice fits — may not be a customer payment' };
+      }
+      r.p = p; results.push(r); seen.set(sig, r);
+      if (r.status === 'matched' || r.kind === 'partial') {
+        let left = p.amount;
+        for (const i of r.invoices) { const take = r.kind === 'fee_deducted' ? i.amount - i.paid : Math.min(left, i.amount - i.paid); i.paid += take; left -= take; i.payments.push(p.id); }
+      }
+    }
+    const outstanding = inv.filter(i => i.amount - i.paid > 0.005).map(i => ({ ...i, open: i.amount - i.paid }));
+    return { results, invoices: inv, outstanding };
+  }
+  return { parseCSV, normInvoices, normPayments, reconcile, iso };
+})();
+
+
+const SAMPLE = {"invoices": "invoice_no,invoice_date,customer,amount,due_date\nINV-1001,2026-10-21,Bayanihan Mart,2480,2026-11-05\nINV-1002,2026-10-24,Masagana Foods,5200,2026-11-08\nINV-1003,2026-10-08,Lakan Auto Parts,3600,2026-10-23\nINV-1004,2026-10-04,Lakan Auto Parts,22600,2026-10-19\nINV-1005,2026-10-18,Silangan Supply,2480,2026-11-02\nINV-1006,2026-10-14,Bayanihan Mart,1250,2026-10-29\nINV-1007,2026-10-03,Masagana Foods,4875,2026-10-18\nINV-1008,2026-10-17,Bayanihan Mart,18250,2026-11-01\nINV-1009,2026-10-18,Lakan Auto Parts,4875,2026-11-02\nINV-1010,2026-10-21,Dagat Seafood Hub,31000,2026-11-05\nINV-1011,2026-10-14,Bituin Laundry,4875,2026-10-29\nINV-1012,2026-10-19,Mutya Boutique,5200,2026-11-03\nINV-1013,2026-10-28,Mutya Boutique,1250,2026-11-12\nINV-1014,2026-10-26,Lakan Auto Parts,3600,2026-11-10\nINV-1015,2026-10-14,Liwayway Bakery,7999.5,2026-10-29\nINV-1016,2026-10-05,Mutya Boutique,4875,2026-10-20\nINV-1017,2026-10-11,Kalye Uno Store,2480,2026-10-26\nINV-1018,2026-10-13,Habagat Hardware,2480,2026-10-28\nINV-1019,2026-10-28,Silangan Supply,7999.5,2026-11-12\nINV-1020,2026-10-09,Lakan Auto Parts,1250,2026-10-24\nINV-1021,2026-10-15,Kalye Uno Store,15800,2026-10-30\nINV-1022,2026-10-13,Dagat Seafood Hub,2480,2026-10-28\nINV-1023,2026-10-10,Silangan Supply,22600,2026-10-25\nINV-1024,2026-10-28,Silangan Supply,7999.5,2026-11-12\nINV-1025,2026-10-07,Kalye Uno Store,31000,2026-10-22\nINV-1026,2026-10-02,Masagana Foods,22600,2026-10-17\nINV-1027,2026-10-25,Kalye Uno Store,5200,2026-11-09\nINV-1028,2026-10-28,Paraiso Water Station,4875,2026-11-12\nINV-1029,2026-10-04,Liwayway Bakery,9150,2026-10-19\nINV-1030,2026-10-15,Paraiso Water Station,22600,2026-10-30\nINV-1031,2026-10-12,Habagat Hardware,3600,2026-10-27\nINV-1032,2026-10-12,Amihan Cafe,4875,2026-10-27\nINV-1033,2026-10-09,Sinag Tutorial Center,31000,2026-10-24\nINV-1034,2026-10-22,Kalye Uno Store,22600,2026-11-06\nINV-1035,2026-10-20,Tala Pharmacy,22600,2026-11-04\nINV-1036,2026-10-18,Masagana Foods,31000,2026-11-02\nINV-1037,2026-10-06,Sampaguita Salon,12400,2026-10-21\nINV-1038,2026-10-09,Lakan Auto Parts,22600,2026-10-24\nINV-1039,2026-10-18,Amihan Cafe,4875,2026-11-02\nINV-1040,2026-10-11,Masagana Foods,1250,2026-10-26\nINV-1041,2026-10-27,Mutya Boutique,1250,2026-11-11\nINV-1042,2026-10-11,Liwayway Bakery,9150,2026-10-26\nINV-1043,2026-10-03,Sinag Tutorial Center,4875,2026-10-18\nINV-1044,2026-10-19,Habagat Hardware,31000,2026-11-03\nINV-1045,2026-10-07,Bituin Laundry,22600,2026-10-22\nINV-1046,2026-10-13,Bituin Laundry,22600,2026-10-28\nINV-1047,2026-10-05,Tala Pharmacy,5200,2026-10-20\nINV-1048,2026-10-08,Dagat Seafood Hub,31000,2026-10-23\nINV-1049,2026-10-18,Lakan Auto Parts,5200,2026-11-02\nINV-1050,2026-10-19,Sinag Tutorial Center,9150,2026-11-03\nINV-1051,2026-10-19,Habagat Hardware,9150,2026-11-03\nINV-1052,2026-10-08,Dagat Seafood Hub,3600,2026-10-23\nINV-1053,2026-10-16,Mutya Boutique,2480,2026-10-31\nINV-1054,2026-10-02,Tala Pharmacy,2480,2026-10-17\nINV-1055,2026-10-21,Mutya Boutique,3600,2026-11-05\nINV-1056,2026-10-22,Silangan Supply,9150,2026-11-06\nINV-1057,2026-10-03,Sampaguita Salon,9150,2026-10-18\nINV-1058,2026-10-20,Dagat Seafood Hub,12400,2026-11-04\nINV-1059,2026-10-09,Paraiso Water Station,15800,2026-10-24\nINV-1060,2026-10-01,Lakan Auto Parts,22600,2026-10-16\n", "payments": [{"name": "bank_statement.csv", "text": "Date,Description,Reference,Debit,Credit\n10/06/2026,INSTAPAY FR MASAGANAFOOD INV-1026,IP2274350418,,22600.00\n10/06/2026,SUPPLIER PAYMENT,BP1641849,3500.00,\n10/07/2026,INSTAPAY FR SAMPAGUITASA INV-1037,IP5278201677,,12400.00\n10/07/2026,CHECK DEP 004512,SYS6866294,,5000.00\n10/09/2026,INTEREST CREDIT,SYS5682940,,5000.00\n10/09/2026,BILLS PAYMENT MERALCO,BP8315831,3500.00,\n10/10/2026,INSTAPAY FR LAKANAUTOPAR INV-1020,IP2015242176,,1250.00\n10/11/2026,INSTAPAY FR TALAPHARMACY INV-1047,IP4311931853,,5200.00\n10/11/2026,BILLS PAYMENT MERALCO,BP2935113,25000.00,\n10/14/2026,INSTAPAY FR MUTYABOUTIQU INV-1016,IP2926780541,,4875.00\n10/14/2026,BILLS PAYMENT MERALCO,BP7462506,12000.00,\n10/15/2026,INSTAPAY FR MASAGANAFOOD INV-1007,IP3030106617,,4875.00\n10/15/2026,INSTAPAY FR LAKANAUTOPAR INV-1060,IP3021598245,,22600.00\n10/16/2026,INSTAPAY FR LAKANAUTOPAR INV-1004,IP3710566582,,22600.00\n10/16/2026,INSTAPAY FR PARAISOWATER INV-1030,IP1798112150,,22600.00\n10/16/2026,INSTAPAY FR SAMPAGUITASA INV-1057,IP9292791081,,9135.00\n10/17/2026,PAYROLL,BP7110622,4800.00,\n10/18/2026,INSTAPAY FR LAKANAUTOPAR INV-1038,IP2139027119,,22600.00\n10/19/2026,INSTAPAY FR SINAGTUTORIA INV-1033,IP3553440342,,31000.00\n10/20/2026,INSTAPAY FR SILANGANSUPP INV-1005,IP4888749350,,1240.00\n10/20/2026,SSS CONTRIBUTION,BP6799667,25000.00,\n10/21/2026,UNKNOWN DEPOSIT,SYS7705490,,3333.00\n10/22/2026,INSTAPAY FR MUTYABOUTIQU INV-1053,IP5736462531,,2480.00\n10/22/2026,REVERSAL ATM FEE,SYS7685149,,5000.00\n10/23/2026,INSTAPAY FR HABAGATHARDW INV-1031,IP4701485292,,1800.00\n10/24/2026,INSTAPAY FR HABAGATHARDW INV-1044,IP2472659626,,31000.00\n10/24/2026,INSTAPAY FR BITUINLAUNDR INV-1046,IP2188332531,,22600.00\n10/25/2026,INSTAPAY FR MUTYABOUTIQU INV-1055,IP4713453204,,3585.00\n10/25/2026,INSTAPAY FR DAGATSEAFOOD,IP4011966884,,12400.00\n10/27/2026,REVERSAL ATM FEE,SYS4740036,,12.50\n10/28/2026,INSTAPAY FR MASAGANAFOOD INV-1002,IP1965067727,,5200.00\n10/29/2026,INSTAPAY FR KELYEUNOSTOR INV-1034,IP2119980130,,22600.00\n10/29/2026,INSTAPAY FR SILANGANSUPP INV-1056,IP1106456634,,9150.00\n10/30/2026,INSTAPAY FR LAKANAUTOPAR INV-1049,IP4882343658,,5200.00\n11/02/2026,INSTAPAY FR SINAGTUTORIA INV-1050,IP3373077218,,9150.00\n11/04/2026,INSTAPAY FR KALYEUNOSTOR INV-1027,IP9851745355,,5200.00\n11/08/2026,INSTAPAY FR MUTYABOUTIQU INV-1013,IP3775320897,,1235.00\n11/10/2026,INSTAPAY FR SILANGANSUPP INV-1024,IP8667072205,,7984.50\n"}, {"name": "gcash_transactions.csv", "text": "Date and Time,Description,Reference No.,Debit,Credit\n2026-10-09 17:35,Received GCash from Lakan Auto Parts INV-1003,1125499878070,,3600.00\n2026-10-11 19:28,Received GCash from Dagat Seafood Hub INV-1048,2967136552614,,31000.00\n2026-10-14 19:46,Received GCash from Kalye Uno Store INV-1025,9562955360970,,15500.00\n2026-10-16 16:15,Received GCash from Bayanihan Mart INV-1006,4768771157991,,1250.00\n2026-10-16 15:16,Received GCash from Bituin Laundry,1896987185344,,22600.00\n2026-10-20 11:23,Received GCash from Amihan Cafe INV-1039,3775772884754,,4875.00\n2026-10-22 09:56,Received GCash from Liwayway Bakery INV-1042,5652026357519,,9150.00\n2026-10-24 12:25,Received GCash from Tala Pharmacy,6276992244264,,22600.00\n2026-10-27 21:06,Received GCash from Liweyway Bakery INV-1015,4368322330884,,7999.50\n2026-10-29 08:37,Received GCash from Paraiso Water Station INV-1028 INV-1029,9845385453546,,14025.00\n2026-11-06 20:41,Received GCash from Mutya Boutique INV-1041,1139710736463,,1250.00\n"}, {"name": "maya_transactions.csv", "text": "Date,Transaction Type,Details,Reference ID,Amount,Status\n2026-10-11,Received money,From Silangan Supply INV-1023,MY519212169,22600.00,Success\n2026-10-12,Received money,From Tala Pharmacy INV-1054,MY904745462,2980.00,Success\n2026-10-14,Received money,From Kalye Uno Store,MY399085574,2480.00,Success\n2026-10-14,Received money,From Dagat Seafood Hub,MY276777762,2480.00,Success\n2026-10-14,Received money,From Amihan Cafe INV-1032,MY711684318,4875.00,Success\n2026-10-17,Received money,From Habagat Hardware,MY180943908,2480.00,Success\n2026-10-20,Received money,From Bituin Laundry INV-1011,MY554814084,4875.00,Success\n2026-10-22,Received money,From Habagat Hardware INV-1051,MY144913399,9150.00,Success\n2026-10-23,Received money,From Kalye Uno Store INV-1021,MY616854671,15800.00,Success\n2026-10-23,Received money,From Kalye Uno Store INV-1021,MY329509408,15800.00,Success\n2026-10-24,Received money,From Mesagana Foods INV-1036,MY907308348,31000.00,Success\n2026-10-25,Received money,From Masagana Foods INV-1040,MY683275843,1250.00,Success\n2026-10-25,Received money,From Masagana Foods INV-1040,MY855420240,1250.00,Success\n2026-10-27,Received money,From Mutya Boutique INV-1012,MY882839238,5200.00,Success\n2026-10-30,Received money,From Beyanihan Mart INV-1001,MY584779555,2480.00,Success\n2026-10-30,Received money,From Bayanihan Mart INV-1008,MY537077308,18750.00,Success\n2026-11-10,Received money,From Silangan Supply INV-1019,MY690907304,3999.75,Success\n"}]};
+const peso = n => '₱' + n.toLocaleString('en-PH', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const state = { invText: SAMPLE.invoices, payTexts: SAMPLE.payments, confirmed: new Map(), rejected: new Set(), tab: 'review', out: null, isSample: true };
+const $ = id => document.getElementById(id);
+const KIND = { exact:'Exact', fee_deducted:'Fee deducted', combined:'Two+ invoices', confirmed:'Confirmed by you', partial:'Partial payment', overpayment:'Overpayment', suggested:'Suggested match', ambiguous:'Several invoices fit', combined_mismatch:'Amount mismatch', possible_duplicate:'Possible duplicate', unmatched:'No match', rejected:'Rejected by you' };
+function run(){
+  try {
+    const inv = NX.normInvoices(NX.parseCSV(state.invText));
+    let pays = []; state.payTexts.forEach(f => { pays = pays.concat(NX.normPayments(NX.parseCSV(f.text), f.name)); });
+    if (!inv.length) throw new Error('No invoices found. The invoice file needs columns for invoice number and amount.');
+    if (!pays.length) throw new Error('No incoming payments found. Payment files need a date column and a credit or amount column.');
+    state.out = NX.reconcile(inv, pays, { confirmed: state.confirmed, rejected: state.rejected });
+    render(); setStatus(`${pays.length} payments checked against ${inv.length} invoices.`);
+  } catch (e) { setStatus(e.message); toast(e.message); }
+}
+function sum(a){ return a.reduce((s, r) => s + r.p.amount, 0); }
+function render(){
+  const R = state.out.results;
+  const g = { matched: R.filter(r => r.status==='matched'), review: R.filter(r => r.status==='review'), unmatched: R.filter(r => r.status==='unmatched') };
+  const O = state.out.outstanding;
+  $('sMatched').textContent = g.matched.length; $('sMatchedAmt').textContent = peso(sum(g.matched));
+  $('sReview').textContent = g.review.length; $('sReviewAmt').textContent = peso(sum(g.review));
+  $('sUnmatched').textContent = g.unmatched.length; $('sUnmatchedAmt').textContent = peso(sum(g.unmatched));
+  $('sOut').textContent = O.length; $('sOutAmt').textContent = peso(O.reduce((s,i)=>s+i.open,0));
+  $('nReview').textContent = g.review.length; $('nMatched').textContent = g.matched.length; $('nUnmatched').textContent = g.unmatched.length; $('nOut').textContent = O.length;
+  $('sampleBanner').hidden = !state.isSample;
+  const t = state.tab;
+  if (t === 'outstanding') {
+    $('table').innerHTML = O.length ? `<table><thead><tr><th>Invoice</th><th>Date</th><th>Customer</th><th style="text-align:right">Amount</th><th style="text-align:right">Still owed</th></tr></thead><tbody>${O.map(i=>`<tr><td class="mono">${esc(i.no)}</td><td class="mono">${NX.iso(i.date)}</td><td>${esc(i.customer)}</td><td class="num">${peso(i.amount)}</td><td class="num">${peso(i.open)}</td></tr>`).join('')}</tbody></table>` : `<div class="empty">Every invoice is fully paid.</div>`;
+    return;
+  }
+  const rows = g[t];
+  const pc = t==='matched' ? 'p-good' : t==='review' ? 'p-warn' : 'p-bad';
+  $('table').innerHTML = rows.length ? `<table><thead><tr><th>Date</th><th>Payment</th><th style="text-align:right">Amount</th><th>Invoice</th><th>Result</th>${t==='review'?'<th>Action</th>':''}</tr></thead><tbody>${rows.map(r=>`<tr>
+    <td class="mono">${NX.iso(r.p.date)}</td>
+    <td>${esc(r.p.desc)}<div class="note">${esc(r.p.source)} · row ${r.p.row}</div></td>
+    <td class="num">${peso(r.p.amount)}</td>
+    <td class="mono">${r.invoices.map(i=>esc(i.no)).join('<br>') || '—'}</td>
+    <td><span class="pill ${r.kind==='confirmed'?'p-acc':pc}">${KIND[r.kind]||r.kind}</span><div class="note">${esc(r.note)}</div></td>
+    ${t==='review'?`<td><div class="rowbtns">${r.invoices.length===1 && r.kind!=='possible_duplicate' ? `<button data-c="${esc(r.p.id)}" data-i="${esc(r.invoices[0].no)}">Confirm ${esc(r.invoices[0].no)}</button>` : ''}${r.kind==='ambiguous' ? r.invoices.map(i=>`<button data-c="${esc(r.p.id)}" data-i="${esc(i.no)}">Pick ${esc(i.no)}</button>`).join('') : ''}<button data-r="${esc(r.p.id)}">${r.kind==='possible_duplicate'?'Ignore':'Reject'}</button></div></td>`:''}
+  </tr>`).join('')}</tbody></table>` : `<div class="empty">${t==='review' ? 'Nothing needs your review.' : t==='matched' ? 'No matches yet.' : 'Every payment is accounted for.'}</div>`;
+}
+$('table').addEventListener('click', e => {
+  const b = e.target.closest('button'); if (!b) return;
+  if (b.dataset.c) { state.confirmed.set(b.dataset.c, [b.dataset.i]); state.rejected.delete(b.dataset.c); toast('Match confirmed'); }
+  if (b.dataset.r) { state.rejected.add(b.dataset.r); state.confirmed.delete(b.dataset.r); toast('Moved to unmatched'); }
+  run();
+});
+document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => { state.tab = b.dataset.t; document.querySelectorAll('.tab').forEach(x => x.setAttribute('aria-selected', String(x===b))); render(); }));
+function readFiles(list){ return Promise.all([...list].map(f => f.text().then(text => ({ name: f.name, text })))); }
+function wire(dropId, inputId, onFiles){
+  const d = $(dropId), inp = $(inputId);
+  d.addEventListener('keydown', e => { if (e.key==='Enter'||e.key===' ') { e.preventDefault(); inp.click(); } });
+  inp.addEventListener('change', () => inp.files.length && onFiles(inp.files));
+  d.addEventListener('dragover', e => { e.preventDefault(); d.classList.add('over'); });
+  d.addEventListener('dragleave', () => d.classList.remove('over'));
+  d.addEventListener('drop', e => { e.preventDefault(); d.classList.remove('over'); e.dataTransfer.files.length && onFiles(e.dataTransfer.files); });
+}
+function leaveSample(){ if (state.isSample) { state.isSample = false; state.confirmed.clear(); state.rejected.clear(); } }
+wire('dropInv', 'fileInv', async fl => { const [f] = await readFiles(fl); leaveSample(); state.invText = f.text; $('invName').textContent = f.name; if (state.payTexts === SAMPLE.payments) { state.payTexts = []; $('payName').textContent = 'add payment files'; } else run(); });
+wire('dropPay', 'filePay', async fl => { const fs = await readFiles(fl); leaveSample(); state.payTexts = fs; $('payName').textContent = fs.map(f=>f.name).join(', '); if (state.invText !== SAMPLE.invoices) run(); });
+$('run').addEventListener('click', run);
+$('sample').addEventListener('click', () => { Object.assign(state, { invText: SAMPLE.invoices, payTexts: SAMPLE.payments, isSample: true }); state.confirmed.clear(); state.rejected.clear(); $('invName').textContent = 'sample: invoices.csv'; $('payName').textContent = 'sample: ' + SAMPLE.payments.map(f=>f.name).join(', '); run(); });
+function reportCSV(){
+  const q = v => `"${String(v ?? '').replace(/"/g,'""')}"`;
+  const lines = [['section','date','source','row','description','amount','invoice_nos','result','note'].join(',')];
+  state.out.results.forEach(r => lines.push([r.status, NX.iso(r.p.date), r.p.source, r.p.row, r.p.desc, r.p.amount.toFixed(2), r.invoices.map(i=>i.no).join(';'), KIND[r.kind]||r.kind, r.note].map(q).join(',')));
+  state.out.outstanding.forEach(i => lines.push(['still_owed', NX.iso(i.date), 'invoices', '', i.customer, i.open.toFixed(2), i.no, 'Still owed', `Invoice total ${i.amount.toFixed(2)}`].map(q).join(',')));
+  return lines.join('\n');
+}
+$('copy').addEventListener('click', () => { const t = reportCSV(); navigator.clipboard.writeText(t).then(() => toast('Report copied — paste it into Google Sheets'), () => toast('Copy was blocked by this browser')); });
+let framed = true; try { framed = window.self !== window.top; } catch (e) {}
+if (!framed) { $('dl').hidden = false; $('dl').addEventListener('click', () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([reportCSV()], {type:'text/csv'})); a.download = 'nexora-reconciliation.csv'; a.click(); }); }
+function setStatus(m){ $('status').textContent = m; }
+let tt; function toast(m){ const t = $('toast'); t.textContent = m; t.hidden = false; clearTimeout(tt); tt = setTimeout(() => t.hidden = true, 2200); }
+run();
+</script>
+
+</body>
+</html>
